@@ -4,9 +4,9 @@ Official code release for **Dream2Flow**.
 
 [[Website](https://dream2flow.github.io/)] [[arXiv](https://arxiv.org/abs/2512.24766)] [[Paper](https://dream2flow.github.io/paper.pdf)]
 
-[**<u>Karthik Dharmarajan</u>**](https://kdharmarajan.com/), [**<u>Wenlong Huang</u>**](https://huangwl18.github.io/), [**<u>Jiajun Wu</u>**](https://jiajunwu.com/), [**<u>Li Fei-Fei</u>**](https://profiles.stanford.edu/fei-fei-li)†, [**<u>Ruohan Zhang</u>**](https://ai.stanford.edu/~zharu/)†
+[**<u>Karthik Dharmarajan</u>**](https://kdharmarajan.com/), [**<u>Wenlong Huang</u>**](https://huangwl18.github.io/)\*, [**<u>Jiajun Wu</u>**](https://jiajunwu.com/), [**<u>Li Fei-Fei</u>**](https://profiles.stanford.edu/fei-fei-li)†, [**<u>Ruohan Zhang</u>**](https://ai.stanford.edu/~zharu/)†
 <br>
-† Equal advising
+\* Corresponding author, † Equal advising
 <br>
 Stanford University
 
