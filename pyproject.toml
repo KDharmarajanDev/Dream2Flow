@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build-meta"
+
+[project]
+name = "dream2flow"
+version = "0.1.0"
+description = "Bridging Video Generation and Open-World Manipulation with 3D Object Flow"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "torch",
+    "numpy",
+    "scipy",
+    "viser",
+    "opencv-python",
+    "google-genai",
+    "python-dotenv",
+    "Pillow",
+    "tensordict",
+    "pyyaml",
+]
+
+[project.optional-dependencies]
+planner = [
+    "pyroki",
+    "jax",
+    "jaxlie",
+    "jaxls",
+    "yourdfpy",
+]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["dream2flow*"]

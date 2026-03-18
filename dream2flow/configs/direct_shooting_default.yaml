@@ -1,0 +1,9 @@
+# Default configuration for DirectShootingPlanner
+urdf_path: "path/to/robot.urdf"
+target_link_name: "panda_grasptarget"
+path_length_weight: 1.0
+particle_matching_weight: 50.0
+max_iterations: 100
+visualize: true
+ee2tip_offset: [0.0, 0.0, -0.09]
+max_num_timesteps_for_optimization: 50
