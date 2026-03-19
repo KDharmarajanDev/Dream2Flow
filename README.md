@@ -31,7 +31,7 @@ Download the scene data from the corresponding Hugging Face link, then place the
 
 ## TODOs
 
-- [x] Release RL reward design and code
+- [ ] Release RL reward design and code
 
 ## Installation
 
@@ -54,7 +54,7 @@ To include the motion planning stack, install the optional `planner` extra:
 python -m pip install -e ".[planner]"
 ```
 
-Optional tracking and visualization dependencies:
+Tracking and visualization dependencies:
 
 - CoTrackerV3:
   clone it into a local `deps/` folder and install it from there.
@@ -67,7 +67,7 @@ python -m pip install matplotlib flow_vis tqdm tensorboard
 ```
 
 - SpatialTrackerV2:
-  if you want to try it instead of CoTrackerV3, also install it inside `deps/`.
+  For depth estimation, we use the output from SpatialTrakcerV2. Please also install it inside `deps/`.
 
 ```bash
 mkdir -p deps
