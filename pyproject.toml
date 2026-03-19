@@ -1,6 +1,6 @@
 [build-system]
-requires = ["setuptools>=61.0"]
-build-backend = "setuptools.build-meta"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [project]
 name = "dream2flow"
@@ -23,13 +23,19 @@ dependencies = [
 
 [project.optional-dependencies]
 planner = [
-    "pyroki",
+    "pyroki @ git+https://github.com/chungmin99/pyroki.git",
     "jax",
     "jaxlie",
     "jaxls",
     "yourdfpy",
+    "robot_descriptions",
 ]
 
-[tool.setuptools.packages.find]
-where = ["."]
-include = ["dream2flow*"]
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["dream2flow"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"dream2flow/configs" = "dream2flow/configs"

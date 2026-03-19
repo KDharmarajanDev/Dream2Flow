@@ -8,8 +8,3 @@ python-dotenv
 Pillow
 tensordict
 pyyaml
-pyroki
-jax
-jaxlie
-jaxls
-yourdfpy

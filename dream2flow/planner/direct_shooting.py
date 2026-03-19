@@ -6,7 +6,7 @@ import jaxlie
 import jaxls
 import pyroki as pk
 import yourdfpy
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Any
 from dataclasses import dataclass, field
 
 from dream2flow.planner.base import Planner, PlanResult
@@ -15,8 +15,9 @@ from dream2flow.flow.object_flow_result import ObjectFlowResult
 @dataclass
 class DirectShootingConfig:
     """Configuration for DirectShootingPlanner."""
-    urdf_path: str
-    target_link_name: str
+    urdf_path: Optional[str] = None
+    target_link_name: str = "panda_grasptarget"
+    urdf: Optional[Any] = None
     path_length_weight: float = 1.0
     particle_matching_weight: float = 50.0
     max_iterations: int = 100
@@ -31,7 +32,12 @@ class DirectShootingPlanner(Planner):
 
     def __init__(self, config: DirectShootingConfig):
         self.config = config
-        self.urdf = yourdfpy.URDF.load(config.urdf_path)
+        if config.urdf is not None:
+            self.urdf = config.urdf
+        elif config.urdf_path:
+            self.urdf = yourdfpy.URDF.load(config.urdf_path)
+        else:
+            raise ValueError("DirectShootingConfig requires either urdf or urdf_path.")
         self.robot = pk.Robot.from_urdf(self.urdf)
         
         if config.target_link_name not in self.robot.links.names:
