@@ -1,6 +1,6 @@
 # Default configuration for DirectShootingPlanner
-urdf_path: null
-target_link_name: "panda_grasptarget"
+urdf_path: "panda_description"
+target_link_name: "panda_hand_tcp"
 path_length_weight: 1.0
 particle_matching_weight: 50.0
 max_iterations: 100

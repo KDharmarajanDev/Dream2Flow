@@ -105,5 +105,6 @@ class CameraCalibration:
         """
         Visualizes the camera extrinsics and intrinsics by showing a camera frustum for each camera.
         """
-        for camera_name, (intrinsics, extrinsics) in self._camera_name_to_intrinsics_extrinsics.items():
+        for camera_name in self._camera_name_to_intrinsics_extrinsics:
+            intrinsics, extrinsics = self.get_camera_calibration(camera_name)
             viewer.register_camera(camera_name, intrinsics, extrinsics)

@@ -17,6 +17,8 @@ class Dream2FlowViewer:
         
         self.server = viser.ViserServer(port=port)
         self._cameras = {}
+        self._camera_name_to_frustum_handle = {}
+        self._point_cloud_name_to_handle = {}
         Dream2FlowViewer._instance = self
 
     @classmethod
@@ -25,33 +27,44 @@ class Dream2FlowViewer:
             cls(port=port)
         return cls._instance
 
+    def _mat_to_viser_pose(self, extrinsic_matrix: torch.Tensor) -> tuple[np.ndarray, np.ndarray]:
+        position = extrinsic_matrix[:3, 3].detach().cpu().numpy()
+
+        from scipy.spatial.transform import Rotation as R
+
+        xyzw = R.from_matrix(extrinsic_matrix[:3, :3].detach().cpu().numpy()).as_quat()
+        wxyz = np.array([xyzw[3], xyzw[0], xyzw[1], xyzw[2]])
+        return position, wxyz
+
     def register_camera(self, name: str, intrinsics: torch.Tensor, extrinsics: torch.Tensor):
         """
         Register a camera for visualization.
         """
-        # extrinsics is (4,4) [R | T]
-        # Viser expects wxyz quaternion and position
-        
-        # We can visualize a frustum or just store it
         self._cameras[name] = (intrinsics, extrinsics)
-        
-        # Visualize coordinate frame for camera
-        pos = extrinsics[:3, 3].detach().cpu().numpy()
-        rot_mat = extrinsics[:3, :3].detach().cpu().numpy()
-        
-        # Convert rot_mat to wxyz quat
-        from scipy.spatial.transform import Rotation as R
-        quat_xyzw = R.from_matrix(rot_mat).as_quat()
-        quat_wxyz = np.array([quat_xyzw[3], quat_xyzw[0], quat_xyzw[1], quat_xyzw[2]])
-        
-        self.server.scene.add_frame(
-            f"/cameras/{name}",
-            wxyz=quat_wxyz,
-            position=pos,
-            show_axes=True,
-            axes_length=0.1,
-            axes_radius=0.005
-        )
+
+        intrinsic_matrix = intrinsics.detach().cpu().numpy()
+        width = max(float(intrinsic_matrix[0, 0]), 1.0)
+        height = max(float(intrinsic_matrix[1, 1]), 1.0)
+        fy = float(intrinsic_matrix[1, 1])
+        position, wxyz = self._mat_to_viser_pose(extrinsics)
+        fov = 2.0 * np.arctan2(height / 2.0, fy) if fy != 0 else np.deg2rad(60.0)
+        aspect = width / height
+
+        if hasattr(self.server.scene, "add_camera_frustum"):
+            if name not in self._camera_name_to_frustum_handle:
+                self._camera_name_to_frustum_handle[name] = self.server.scene.add_camera_frustum(
+                    f"/cameras/{name}/frustum",
+                    fov=fov,
+                    aspect=aspect,
+                    scale=0.05,
+                    wxyz=wxyz,
+                    position=position,
+                )
+            frustum_handle = self._camera_name_to_frustum_handle[name]
+            frustum_handle.wxyz = wxyz
+            frustum_handle.position = position
+            frustum_handle.fov = fov
+            frustum_handle.aspect = aspect
 
     def visualize_point_cloud(self, name: str, points: torch.Tensor, colors: Optional[torch.Tensor] = None, point_size: float = 0.005):
         """
@@ -63,12 +76,18 @@ class Dream2FlowViewer:
         else:
             colors_np = np.ones_like(points_np) * 0.5 # Default gray
             
-        self.server.scene.add_point_cloud(
-            name=name,
-            points=points_np,
-            colors=colors_np,
-            point_size=point_size
-        )
+        if name not in self._point_cloud_name_to_handle:
+            self._point_cloud_name_to_handle[name] = self.server.scene.add_point_cloud(
+                name=name,
+                points=points_np,
+                colors=colors_np,
+                point_shape="circle",
+                point_size=point_size
+            )
+        point_cloud_handle = self._point_cloud_name_to_handle[name]
+        point_cloud_handle.points = points_np
+        point_cloud_handle.colors = colors_np
+        point_cloud_handle.point_size = point_size
 
     def visualize_object_flow(self, flow: ObjectFlow, name: str, show_all_timesteps: bool = False, point_size: float = 0.005):
         """

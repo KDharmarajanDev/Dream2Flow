@@ -31,7 +31,12 @@ def strip_matching_quotes(raw_value: str) -> str:
 
 def prompt_with_default(message: str, default: Optional[str] = None) -> str:
     prompt = f"{message} ({default}): " if default else f"{message}: "
-    response = strip_matching_quotes(input(prompt))
+    try:
+        response = strip_matching_quotes(input(prompt))
+    except EOFError:
+        if default is not None:
+            return default
+        raise
     if response:
         return response
     if default is not None:
@@ -56,8 +61,17 @@ def prompt_scene_path(
     label: str,
     default_name: str,
     override: Optional[str] = None,
+    *,
+    prompt_if_missing: bool = False,
 ) -> Path:
-    raw_value = override or prompt_with_default(label, default_name)
+    if override is not None:
+        return resolve_scene_path(scene_dir, override)
+
+    default_path = resolve_scene_path(scene_dir, default_name)
+    if default_path.exists() or not prompt_if_missing:
+        return default_path
+
+    raw_value = prompt_with_default(label, default_name)
     return resolve_scene_path(scene_dir, raw_value)
 
 
@@ -87,9 +101,12 @@ def choose_option(
 
     options_text = " ".join(f"[{i}] {option}" for i, option in enumerate(option_list, start=1))
     while True:
-        raw_value = strip_matching_quotes(
-            input(f"{label} {options_text} (default: [{default_index}] {default}): ")
-        )
+        try:
+            raw_value = strip_matching_quotes(
+                input(f"{label} {options_text} (default: [{default_index}] {default}): ")
+            )
+        except EOFError:
+            return default
         if not raw_value:
             return default
         if raw_value.isdigit():

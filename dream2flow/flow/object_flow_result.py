@@ -42,7 +42,7 @@ class ObjectFlowResult:
         """
         Load object flow generation result from a file.
         """
-        load_dict = torch.load(filepath, map_location=device)
+        load_dict = torch.load(filepath, map_location=device, weights_only=False)
         
         return cls(
             flow=load_dict["flow"],

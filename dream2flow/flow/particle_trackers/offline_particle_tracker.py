@@ -99,7 +99,12 @@ class OfflineParticleTracker(ParticleTracker):
                 mode="rainbow",
                 tracks_leave_trace=self.config.tracks_leave_trace,
             )
-            visualizer.visualize(batched_rgb_images, predicted_tracks, predicted_visibilities)
+            visualizer.visualize(
+                batched_rgb_images,
+                predicted_tracks,
+                predicted_visibilities,
+                filename="track_vis",
+            )
 
         return ParticleTrackingResult(
             flow=flow,

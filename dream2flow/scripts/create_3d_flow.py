@@ -1,9 +1,11 @@
 import argparse
 import json
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
 import torch
+import yaml
 from PIL import Image
 
 from dream2flow.camera import CameraCalibration
@@ -13,6 +15,7 @@ from dream2flow.flow.depth import (
     SpaTrackerDepthExtractor,
     SpaTrackerDepthExtractorConfig,
 )
+from dream2flow.flow.geometry import depth_to_world_points
 from dream2flow.flow.generators.video_flow_generator import VideoFlowGenerator
 from dream2flow.scripts._scene_utils import (
     choose_option,
@@ -29,6 +32,53 @@ from dream2flow.video.veo import VeoVideoSource
 from dream2flow.visualization.viewer import Dream2FlowViewer
 
 
+@dataclass(frozen=True)
+class LanguageInstructionConfig:
+    instruction: str
+    object_name: str
+
+
+def _subsample_point_cloud(
+    points: torch.Tensor,
+    colors: torch.Tensor,
+    max_points: int = 50000,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    if points.shape[0] <= max_points:
+        return points, colors
+    indices = torch.linspace(0, points.shape[0] - 1, max_points, device=points.device).long()
+    return points[indices], colors[indices]
+
+
+def _visualize_initial_rgbd_point_cloud(
+    viewer: Dream2FlowViewer,
+    camera: CameraCalibration,
+    camera_name: str,
+    start_image: torch.Tensor,
+    initial_depth: torch.Tensor,
+) -> None:
+    intrinsics, extrinsics = camera.get_camera_calibration(camera_name)
+    intrinsics = intrinsics.to(device=initial_depth.device, dtype=torch.float32)
+    extrinsics = extrinsics.to(device=initial_depth.device, dtype=torch.float32)
+    point_cloud = depth_to_world_points(
+        depth=initial_depth.unsqueeze(0).to(dtype=torch.float32),
+        camera_intrinsics=intrinsics,
+        camera_extrinsics=extrinsics,
+    ).squeeze(0)
+    colors = start_image.reshape(-1, 3)
+    valid_mask = initial_depth.reshape(-1) > 0
+    point_cloud = point_cloud[valid_mask]
+    colors = colors[valid_mask]
+    if point_cloud.numel() == 0:
+        return
+    point_cloud, colors = _subsample_point_cloud(point_cloud, colors)
+    viewer.visualize_point_cloud(
+        "/scripts/initial_rgbd_point_cloud",
+        point_cloud,
+        colors,
+        point_size=0.005,
+    )
+
+
 def _load_tensor(path: str, *, device: str) -> torch.Tensor:
     tensor = torch.load(Path(path).expanduser().resolve(), map_location=device)
     if not isinstance(tensor, torch.Tensor):
@@ -42,11 +92,21 @@ def _load_rgb_image(path: str, *, device: str) -> torch.Tensor:
     return image_tensor.to(device)
 
 
-def _load_language_instruction(path: Path) -> str:
-    instruction = path.read_text(encoding="utf-8").strip()
+def _load_language_instruction_config(path: Path) -> LanguageInstructionConfig:
+    with open(path, "r", encoding="utf-8") as file:
+        data = yaml.safe_load(file) or {}
+
+    if not isinstance(data, dict):
+        raise TypeError(f"Expected a YAML mapping in {path}, got {type(data).__name__}")
+
+    instruction = str(data.get("instruction", "")).strip()
+    object_name = str(data.get("object_name", "")).strip()
     if not instruction:
-        raise ValueError(f"Language instruction file is empty: {path}")
-    return instruction
+        raise ValueError(f"Missing or empty 'instruction' in {path}")
+    if not object_name:
+        raise ValueError(f"Missing or empty 'object_name' in {path}")
+
+    return LanguageInstructionConfig(instruction=instruction, object_name=object_name)
 
 
 def _suggest_camera_name(camera_calibration_path: Path) -> str:
@@ -96,6 +156,7 @@ def main() -> None:
             "Camera calibration JSON",
             "camera_calibration_info.json",
             args.camera_calibration,
+            prompt_if_missing=True,
         ),
         "Camera calibration JSON",
     )
@@ -110,6 +171,7 @@ def main() -> None:
             "Start RGB image",
             "camera_rgb.png",
             args.start_image,
+            prompt_if_missing=True,
         ),
         "Start RGB image",
     )
@@ -117,8 +179,9 @@ def main() -> None:
         prompt_scene_path(
             scene_dir,
             "Language instruction",
-            "language_instruction.txt",
+            "language_instruction.yaml",
             args.language_instruction,
+            prompt_if_missing=True,
         ),
         "Language instruction",
     )
@@ -157,17 +220,21 @@ def main() -> None:
 
     camera = CameraCalibration.load(str(camera_calibration_path), device=device)
     start_image = _load_rgb_image(str(start_image_path), device=device)
-    language_instruction = _load_language_instruction(language_instruction_path)
+    language_instruction_config = _load_language_instruction_config(language_instruction_path)
+    language_instruction = language_instruction_config.instruction
+    object_name = language_instruction_config.object_name
     initial_depth_path = ensure_existing_file(
         prompt_scene_path(
             scene_dir,
             "Initial depth tensor",
             "initial_depth.pt",
             args.initial_depth,
+            prompt_if_missing=True,
         ),
         "Initial depth tensor",
     )
     print_kv("Initial Depth", initial_depth_path)
+    print_kv("Object Name", object_name)
     initial_depth = _load_tensor(str(initial_depth_path), device=device)
 
     if video_generation_method == "local file":
@@ -177,6 +244,7 @@ def main() -> None:
                 "Video path",
                 "rgb.mp4",
                 args.video_path,
+                prompt_if_missing=True,
             ),
             "Video path",
         )
@@ -199,6 +267,7 @@ def main() -> None:
                 "Depth frames tensor",
                 "depth_frames.pt",
                 args.depth_frames,
+                prompt_if_missing=True,
             ),
             "Depth frames tensor",
         )
@@ -217,6 +286,7 @@ def main() -> None:
         camera=camera,
         camera_name=camera_name,
         instruction=language_instruction,
+        object_name=object_name,
         video_frames=video_frames,
         initial_depth=initial_depth,
         video_path=str(video_path) if video_generation_method == "local file" else str(scene_dir / "rgb.mp4"),
@@ -225,6 +295,13 @@ def main() -> None:
 
     viewer = Dream2FlowViewer.get_viewer(port=args.viser_port)
     camera.visualize(viewer)
+    _visualize_initial_rgbd_point_cloud(
+        viewer=viewer,
+        camera=camera,
+        camera_name=camera_name,
+        start_image=start_image,
+        initial_depth=initial_depth,
+    )
     viewer.visualize_object_flow(
         flow_result.flow,
         name="/scripts/object_flow",

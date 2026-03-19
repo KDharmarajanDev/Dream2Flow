@@ -69,7 +69,7 @@ Scene file defaults:
 
 - Camera calibration: `camera_calibration_info.json`
 - Start RGB image: `camera_rgb.png`
-- Language instruction: `language_instruction.txt`
+- Language instruction: `language_instruction.yaml`
 - Local video file: `rgb.mp4`
 - Playback depth frames: `depth_frames.pt`
 - Initial depth for generated depth: `initial_depth.pt`
@@ -78,7 +78,7 @@ Scene file defaults:
 
 Input logic:
 
-- The script always reads the language instruction from `language_instruction.txt`
+- The script always reads the language instruction from `language_instruction.yaml`
 - If video generation uses `local file`, it reads a video file, defaulting to `rgb.mp4`
 - If video generation uses `Veo 3`, it uses the start image and language instruction to generate a new video in the scene directory
 - If depth estimation uses `playback`, it reads `depth_frames.pt`
@@ -103,7 +103,7 @@ Required file formats:
 - Start RGB image:
   RGB `.png` image
 - Language instruction file:
-  plain text file containing a single sentence
+  YAML mapping with `instruction` and `object_name` string fields
 - Local video file:
   `.mp4` video readable by OpenCV
 - Depth frames tensor `.pt`:
@@ -141,9 +141,10 @@ Input logic:
 
 Default robot behavior:
 
-- The script first tries to load a Franka robot through `robot_descriptions.loaders.yourdfpy.load_robot_description(...)`
-- The default target link is `panda_grasptarget`
-- If the Franka description cannot be loaded and no URDF path is provided, the script falls back to a scene-local URDF path with the default filename `robot.urdf`
+- The planner takes a single `urdf_path` string and a `target_link_name`
+- By default, `urdf_path` is `panda_description`
+- The default target link is `panda_hand_tcp`
+- The planner first tries to interpret `urdf_path` as a `robot_descriptions` package name, then falls back to loading it as a filesystem path
 
 Required file formats:
 

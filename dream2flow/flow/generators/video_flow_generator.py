@@ -53,13 +53,6 @@ class VideoFlowGenerator(ObjectFlowGenerator):
         rgb_img = start_image.detach().cpu().numpy()
         cv2.imwrite(str(rgb_save_file_path), cv2.cvtColor((rgb_img * 255).astype(np.uint8), cv2.COLOR_RGB2BGR))
 
-    def _save_depth_if_needed(self, output_dir: Path, initial_depth: torch.Tensor) -> None:
-        if not self.config.save_intermediate_results:
-            return
-        initial_depth_file_path = output_dir / "camera_depth.npy"
-        if not initial_depth_file_path.exists():
-            np.save(initial_depth_file_path, initial_depth.detach().cpu().numpy())
-
     def _save_camera_if_needed(self, output_dir: Path, camera: CameraCalibration) -> None:
         if not self.config.save_intermediate_results:
             return
@@ -84,7 +77,7 @@ class VideoFlowGenerator(ObjectFlowGenerator):
     def _get_tracked_particle_image_coordinates(
         self,
         output_dir: Path,
-        instruction: str,
+        object_name: str,
         initial_rgb_img_torch: torch.Tensor,
         initial_depth_arr_torch: torch.Tensor,
         valid_estimated_depth_mask: torch.Tensor,
@@ -94,7 +87,7 @@ class VideoFlowGenerator(ObjectFlowGenerator):
         tracked_object_mask = self._region_selector.extract_region(
             output_dir=str(output_dir),
             image=initial_rgb_img_torch,
-            instruction=instruction,
+            object_name=object_name,
         )
         tracked_object_mask = self._erode_mask(
             tracked_object_mask,
@@ -144,6 +137,7 @@ class VideoFlowGenerator(ObjectFlowGenerator):
         camera: CameraCalibration,
         camera_name: str,
         instruction: str,
+        object_name: str,
         video_frames: torch.Tensor,
         initial_depth: torch.Tensor,
         depth_valid_mask: torch.Tensor | None = None,
@@ -155,7 +149,6 @@ class VideoFlowGenerator(ObjectFlowGenerator):
         initial_depth = initial_depth.to(dtype=torch.float32, device=self.device)
 
         self._save_rgb_if_needed(output_dir_path, start_image)
-        self._save_depth_if_needed(output_dir_path, initial_depth)
         self._save_camera_if_needed(output_dir_path, camera)
 
         depth_frames = self._depth_extractor.extract_depth_from_file(output_dir, video_path)
@@ -172,7 +165,7 @@ class VideoFlowGenerator(ObjectFlowGenerator):
 
         tracked_object_pixel_coords, tracked_region_mask = self._get_tracked_particle_image_coordinates(
             output_dir=output_dir_path,
-            instruction=instruction,
+            object_name=object_name,
             initial_rgb_img_torch=start_image,
             initial_depth_arr_torch=initial_depth,
             valid_estimated_depth_mask=depth_frames[0] > 0,
