@@ -15,13 +15,29 @@ class SpaTrackerDepthExtractorConfig(DepthExtractorConfig):
 
 
 class SpaTrackerDepthExtractor(DepthExtractor):
+    @staticmethod
+    def _add_spatracker_repo_to_path() -> None:
+        workspace_root = Path(__file__).resolve().parents[3]
+        candidate_roots = [
+            workspace_root / "deps" / "SpaTrackerV2",
+        ]
+
+        for spatracker_root in candidate_roots:
+            if spatracker_root.is_dir():
+                if str(spatracker_root) not in sys.path:
+                    sys.path.insert(0, str(spatracker_root))
+                return
+
+        expected_locations = ", ".join(str(path) for path in candidate_roots)
+        raise ImportError(
+            "Could not find the SpaTrackerV2 repository. "
+            "Install it in one of these locations and try again: "
+            f"{expected_locations}"
+        )
+
     def __init__(self, config: SpaTrackerDepthExtractorConfig, device: str) -> None:
         super().__init__(config, device)
-
-        workspace_root = Path(__file__).resolve().parents[4]
-        spatracker_root = workspace_root / "video-particles" / "deps" / "SpaTrackerV2"
-        if str(spatracker_root) not in sys.path:
-            sys.path.insert(0, str(spatracker_root))
+        self._add_spatracker_repo_to_path()
 
         from models.SpaTrackV2.models.predictor import Predictor
         from models.SpaTrackV2.models.utils import get_points_on_a_grid

@@ -33,9 +33,10 @@ from dream2flow.visualization.viewer import Dream2FlowViewer
 
 
 @dataclass(frozen=True)
-class LanguageInstructionConfig:
+class SceneDataConfig:
     instruction: str
     object_name: str
+    robot_start_joints: tuple[float, ...] | None = None
 
 
 def _subsample_point_cloud(
@@ -92,7 +93,7 @@ def _load_rgb_image(path: str, *, device: str) -> torch.Tensor:
     return image_tensor.to(device)
 
 
-def _load_language_instruction_config(path: Path) -> LanguageInstructionConfig:
+def _load_scene_data_config(path: Path) -> SceneDataConfig:
     with open(path, "r", encoding="utf-8") as file:
         data = yaml.safe_load(file) or {}
 
@@ -106,7 +107,15 @@ def _load_language_instruction_config(path: Path) -> LanguageInstructionConfig:
     if not object_name:
         raise ValueError(f"Missing or empty 'object_name' in {path}")
 
-    return LanguageInstructionConfig(instruction=instruction, object_name=object_name)
+    robot_start_joints = data.get("robot_start_joints")
+    if robot_start_joints is not None:
+        robot_start_joints = tuple(float(value) for value in robot_start_joints)
+
+    return SceneDataConfig(
+        instruction=instruction,
+        object_name=object_name,
+        robot_start_joints=robot_start_joints,
+    )
 
 
 def _suggest_camera_name(camera_calibration_path: Path) -> str:
@@ -130,7 +139,8 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--camera-calibration", dest="camera_calibration")
     parser.add_argument("--camera-name")
     parser.add_argument("--start-image")
-    parser.add_argument("--language-instruction")
+    parser.add_argument("--scene-data")
+    parser.add_argument("--language-instruction", dest="scene_data")
     parser.add_argument("--output-path")
     parser.add_argument("--device", default="cpu")
     parser.add_argument("--viser-port", type=int, default=8080)
@@ -175,15 +185,15 @@ def main() -> None:
         ),
         "Start RGB image",
     )
-    language_instruction_path = ensure_existing_file(
+    scene_data_path = ensure_existing_file(
         prompt_scene_path(
             scene_dir,
-            "Language instruction",
-            "language_instruction.yaml",
-            args.language_instruction,
+            "Scene data",
+            "scene_data.yaml",
+            args.scene_data,
             prompt_if_missing=True,
         ),
-        "Language instruction",
+        "Scene data",
     )
 
     video_generation_method = choose_option(
@@ -213,16 +223,16 @@ def main() -> None:
     print_kv("Camera Calibration", camera_calibration_path)
     print_kv("Camera Name", camera_name)
     print_kv("Start Image", start_image_path)
-    print_kv("Language Instruction", language_instruction_path)
+    print_kv("Scene Data", scene_data_path)
     print_kv("Video Generation Method", video_generation_method)
     print_kv("Depth Estimation Mode", depth_mode)
     print_kv("Output Flow Result", output_path)
 
     camera = CameraCalibration.load(str(camera_calibration_path), device=device)
     start_image = _load_rgb_image(str(start_image_path), device=device)
-    language_instruction_config = _load_language_instruction_config(language_instruction_path)
-    language_instruction = language_instruction_config.instruction
-    object_name = language_instruction_config.object_name
+    scene_data_config = _load_scene_data_config(scene_data_path)
+    language_instruction = scene_data_config.instruction
+    object_name = scene_data_config.object_name
     initial_depth_path = ensure_existing_file(
         prompt_scene_path(
             scene_dir,

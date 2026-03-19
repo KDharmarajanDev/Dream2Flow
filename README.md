@@ -18,8 +18,20 @@ Dream2Flow is a library for generating 3D object flow from video sources and pla
 
 - **3D Object Flow**: Clean abstractions for representing and visualizing 3D trajectories of objects.
 - **Video Sources**: Support for generating videos via Google Veo 3 or playing back from files.
-- **Motion Planning**: Direct Shooting Planner using PyRoki for joint-space optimization.
+- **Motion Planning**: Trajectory optimizer using PyRoki for joint-space optimization.
 - **Visualization**: Interactive 3D visualization using Viser.
+
+## Example Scenes
+
+| Task | Scene Preview | Hugging Face Data |
+| --- | --- | --- |
+| put bread | <img src="data/put_bread/camera_rgb.png" alt="Put bread scene preview" width="240" /> | TBD |
+
+Download the scene data from the corresponding Hugging Face link, then place the extracted scene folder inside [`data/`](/scr/karthikd/Documents/video_particle/Dream2Flow/data). For example, after downloading the `put_bread` scene, the files should live under [`data/put_bread/`](/scr/karthikd/Documents/video_particle/Dream2Flow/data/put_bread).
+
+## TODOs
+
+- [x] Release RL reward design and code
 
 ## Installation
 
@@ -41,6 +53,51 @@ To include the motion planning stack, install the optional `planner` extra:
 ```bash
 python -m pip install -e ".[planner]"
 ```
+
+Optional tracking and visualization dependencies:
+
+- CoTrackerV3:
+  clone it into a local `deps/` folder and install it from there.
+
+```bash
+mkdir -p deps
+git clone https://github.com/facebookresearch/co-tracker.git deps/co-tracker
+python -m pip install -e ./deps/co-tracker
+python -m pip install matplotlib flow_vis tqdm tensorboard
+```
+
+- SpatialTrackerV2:
+  if you want to try it instead of CoTrackerV3, also install it inside `deps/`.
+
+```bash
+mkdir -p deps
+git clone https://github.com/henry123-boy/SpaTrackerV2.git deps/SpaTrackerV2
+python -m pip install -r ./deps/SpaTrackerV2/requirements.txt
+```
+
+  If you want the example assets bundled by the SpatialTrackerV2 repo, run:
+
+```bash
+git -C deps/SpaTrackerV2 submodule update --init --recursive
+```
+
+- `torch-cluster`:
+  install the wheel that matches your PyTorch and CUDA build, using the PyG wheel index referenced by the upstream project.
+
+```bash
+python -m pip install torch-cluster -f https://data.pyg.org/whl/torch-${TORCH}+${CUDA}.html
+```
+
+  Replace `${TORCH}` and `${CUDA}` with the versions that match your environment, or follow the upstream source-build instructions if you prefer to compile locally.
+
+Upstream installation references:
+
+- CoTrackerV3:
+  <https://github.com/facebookresearch/co-tracker?tab=readme-ov-file#installation-instructions>
+- SpatialTrackerV2:
+  <https://github.com/henry123-boy/SpaTrackerV2?tab=readme-ov-file#set-up-the-environment>
+- torch-cluster:
+  <https://github.com/rusty1s/pytorch_cluster?tab=readme-ov-file#installation>
 
 ## Usage
 
@@ -69,7 +126,7 @@ Scene file defaults:
 
 - Camera calibration: `camera_calibration_info.json`
 - Start RGB image: `camera_rgb.png`
-- Language instruction: `language_instruction.yaml`
+- Scene data: `scene_data.yaml`
 - Local video file: `rgb.mp4`
 - Playback depth frames: `depth_frames.pt`
 - Initial depth for generated depth: `initial_depth.pt`
@@ -78,7 +135,7 @@ Scene file defaults:
 
 Input logic:
 
-- The script always reads the language instruction from `language_instruction.yaml`
+- The script always reads the scene metadata from `scene_data.yaml`
 - If video generation uses `local file`, it reads a video file, defaulting to `rgb.mp4`
 - If video generation uses `Veo 3`, it uses the start image and language instruction to generate a new video in the scene directory
 - If depth estimation uses `playback`, it reads `depth_frames.pt`
@@ -102,8 +159,8 @@ Required file formats:
   `extrinsics`: 4x4 numeric matrix
 - Start RGB image:
   RGB `.png` image
-- Language instruction file:
-  YAML mapping with `instruction` and `object_name` string fields
+- Scene data file:
+  YAML mapping with `instruction`, `object_name`, and optional `robot_start_joints`
 - Local video file:
   `.mp4` video readable by OpenCV
 - Depth frames tensor `.pt`:
@@ -128,16 +185,16 @@ python -m dream2flow.scripts.plan_and_visualize_flow
 Scene file defaults:
 
 - flow result: `object_flow_result.pt`
-- planner config: `direct_shooting_config.yaml`
+- trajectory optimizer config: `trajectory_optimization_config.yaml`
 - initial joints: `initial_joints.txt`
 - initial pose: `initial_pose.txt`
-- plan output: `direct_shooting_plan.pt`
+- trajectory optimization output: `trajectory_optimization_plan.pt`
 
 Input logic:
 
 - The script first looks for the flow result in the scene directory, unless you override it with a full path
 - The script looks for `initial_joints.txt` and `initial_pose.txt` in the scene directory before prompting for inline values
-- If `direct_shooting_config.yaml` is not present in the scene directory, the script falls back to the packaged defaults and then applies any explicit overrides
+- If `trajectory_optimization_config.yaml` is not present in the scene directory, the script falls back to the packaged defaults and then applies any explicit overrides
 
 Default robot behavior:
 
@@ -151,7 +208,7 @@ Required file formats:
 - Flow result `.pt`:
   a serialized `ObjectFlowResult` saved by Dream2Flow, typically from `dream2flow.scripts.create_3d_flow`
 - Planner YAML config:
-  YAML mapping compatible with `DirectShootingConfig`
+  YAML mapping compatible with `TrajectoryOptimizerConfig`
 - Planner YAML supported keys:
   `urdf_path`: string or null
   `target_link_name`: string
@@ -159,7 +216,6 @@ Required file formats:
   `particle_matching_weight`: float
   `max_iterations`: integer
   `visualize`: boolean
-  `ee2tip_offset`: list of 3 numbers
   `max_num_timesteps_for_optimization`: integer
 - Initial joints text file:
   comma-separated joint values, one scene-specific robot configuration
@@ -172,7 +228,7 @@ Outputs:
   `joint_trajectory`: tensor with shape `(T, J)`
   `ee_trajectory`: tensor with shape `(T, 7)`
 - Default output path:
-  `<scene_dir>/direct_shooting_plan.pt`
+  `<scene_dir>/trajectory_optimization_plan.pt`
 - Opens a Viser session showing both the object flow and the planned trajectory
 
 ## Citation

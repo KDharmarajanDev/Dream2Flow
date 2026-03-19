@@ -52,3 +52,5 @@ tmp/
 # Data artifacts
 data/*
 !data/README.md
+
+deps/*

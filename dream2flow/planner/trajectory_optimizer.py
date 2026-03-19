@@ -7,7 +7,7 @@ import jaxls
 import pyroki as pk
 import yourdfpy
 from typing import Optional, Dict, List, Any
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 from dream2flow.planner.base import Planner, PlanResult
 from dream2flow.flow.object_flow_result import ObjectFlowResult
@@ -18,23 +18,22 @@ except ImportError:
     load_robot_description = None
 
 @dataclass
-class DirectShootingConfig:
-    """Configuration for DirectShootingPlanner."""
+class TrajectoryOptimizerConfig:
+    """Configuration for TrajectoryOptimizer."""
     urdf_path: str = "panda_description"
     target_link_name: str = "panda_hand_tcp"
     path_length_weight: float = 1.0
     particle_matching_weight: float = 50.0
     max_iterations: int = 100
     visualize: bool = False
-    ee2tip_offset: np.ndarray = field(default_factory=lambda: np.zeros(3))
     max_num_timesteps_for_optimization: int = 50
 
-class DirectShootingPlanner(Planner):
+class TrajectoryOptimizer(Planner):
     """
     Planner that uses PyRoki joint-space optimization to solve for robot trajectories.
     """
 
-    def __init__(self, config: DirectShootingConfig):
+    def __init__(self, config: TrajectoryOptimizerConfig):
         self.config = config
         if load_robot_description is not None:
             try:
@@ -92,11 +91,6 @@ class DirectShootingPlanner(Planner):
             num_timesteps=num_timesteps
         )
         
-        # Apply ee2tip_offset if needed (similar to original code)
-        # In the original code, this was used to adjust the EE pose to the tip
-        if np.any(self.config.ee2tip_offset != 0):
-            ee_poses = self._apply_offset(ee_poses, self.config.ee2tip_offset)
-
         return PlanResult(
             joint_trajectory=np.array(joint_trajectory),
             ee_trajectory=np.array(ee_poses)
@@ -225,23 +219,3 @@ class DirectShootingPlanner(Planner):
         ee_poses = jnp.concatenate([ee_pos, ee_quat_xyzw], axis=-1)
         
         return joint_trajectory, ee_poses
-
-    def _apply_offset(self, ee_poses: jnp.ndarray, offset: np.ndarray) -> jnp.ndarray:
-        """
-        Apply translation offset in end-effector frame.
-        """
-        # ee_poses: (T, 7) [x, y, z, qx, qy, qz, qw]
-        # offset: (3,)
-        
-        pos = ee_poses[..., :3]
-        quat_xyzw = ee_poses[..., 3:]
-        
-        # Using jaxlie for rotation
-        rot = jax.vmap(jaxlie.SO3.from_quaternion_xyzw)(quat_xyzw)
-        
-        # In the original code, there was an init_ee_rotation and init2world transform.
-        # Here we simplify to a direct offset in the EE frame.
-        offset_world = rot @ jnp.array(offset)
-        new_pos = pos + offset_world
-        
-        return jnp.concatenate([new_pos, quat_xyzw], axis=-1)

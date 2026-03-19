@@ -128,6 +128,25 @@ class Dream2FlowViewer:
             # Trigger initial update
             _ (None)
 
+    def visualize_flow_timestep(
+        self,
+        flow: ObjectFlow,
+        name: str,
+        timestep: int,
+        point_size: float = 0.005,
+    ):
+        """
+        Visualize a single ObjectFlow timestep without creating GUI controls.
+        """
+        timestep = int(np.clip(timestep, 0, flow.position.shape[0] - 1))
+        valid_mask = flow.valid_mask[timestep]
+        positions = flow.position[timestep][valid_mask]
+        if flow.rgb is not None:
+            colors = flow.rgb[timestep][valid_mask]
+        else:
+            colors = None
+        self.visualize_point_cloud(name, positions, colors, point_size)
+
     def visualize_lines(self, name: str, points: torch.Tensor, color: torch.Tensor, line_width: float = 2.0):
         """
         Visualize line segments.
