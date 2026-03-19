@@ -48,3 +48,7 @@ Thumbs.db
 # Common output directories
 outputs/
 tmp/
+
+# Data artifacts
+data/*
+!data/README.md

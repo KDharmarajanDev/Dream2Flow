@@ -2,12 +2,20 @@ import argparse
 from pathlib import Path
 from typing import Optional
 
-import numpy as np
 import torch
 import yaml
 
 from dream2flow.flow.object_flow_result import ObjectFlowResult
 from dream2flow.planner.direct_shooting import DirectShootingConfig, DirectShootingPlanner
+from dream2flow.scripts._scene_utils import (
+    ensure_existing_file,
+    print_banner,
+    print_kv,
+    print_section,
+    prompt_scene_path,
+    resolve_float_list,
+    resolve_scene_dir,
+)
 from dream2flow.visualization.viewer import Dream2FlowViewer
 
 try:
@@ -23,38 +31,8 @@ DEFAULT_FRANKA_DESCRIPTION_NAMES = (
 DEFAULT_FRANKA_TARGET_LINK = "panda_grasptarget"
 
 
-def _prompt_if_missing(value: Optional[str], message: str) -> str:
-    if value:
-        return value
-    while True:
-        response = input(message).strip()
-        if response:
-            return response
-        print("A value is required.")
-
-
-def _parse_float_list(
-    value: Optional[str],
-    expected_length: int,
-    prompt_message: str,
-    *,
-    dtype=np.float64,
-) -> np.ndarray:
-    while True:
-        raw_value = value if value is not None else input(prompt_message).strip()
-        try:
-            parsed = np.fromstring(raw_value, sep=",", dtype=dtype)
-        except ValueError:
-            parsed = np.array([], dtype=dtype)
-
-        if parsed.size == expected_length:
-            return parsed
-
-        print(f"Expected {expected_length} comma-separated values.")
-        value = None
-
-
 def _build_planner_config(
+    scene_dir: Path,
     config_path: Optional[str],
     urdf_path: Optional[str],
     target_link_name: Optional[str],
@@ -73,7 +51,12 @@ def _build_planner_config(
     config_data = _apply_default_franka_config(config_data)
 
     if "urdf_path" not in config_data and "urdf" not in config_data:
-        config_data["urdf_path"] = _prompt_if_missing(None, "Path to robot URDF: ")
+        config_data["urdf_path"] = str(
+            ensure_existing_file(
+                prompt_scene_path(scene_dir, "Robot URDF path", "robot.urdf", None),
+                "Robot URDF",
+            )
+        )
     if "target_link_name" not in config_data:
         config_data["target_link_name"] = DEFAULT_FRANKA_TARGET_LINK
 
@@ -128,6 +111,7 @@ def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Load a 3D flow result, run direct shooting planning, and visualize in Viser."
     )
+    parser.add_argument("--scene-dir")
     parser.add_argument("--flow-result")
     parser.add_argument("--planner-config")
     parser.add_argument("--urdf-path")
@@ -148,27 +132,65 @@ def _parse_args() -> argparse.Namespace:
 def main() -> None:
     args = _parse_args()
 
-    flow_result_path = _prompt_if_missing(
-        args.flow_result, "Path to object flow result (.pt): "
-    )
-    flow_result = ObjectFlowResult.load(flow_result_path, device=args.device)
+    print_banner("Plan And Visualize Flow")
+    scene_dir = resolve_scene_dir(args.scene_dir)
+    scene_dir.mkdir(parents=True, exist_ok=True)
 
-    planner_config = _build_planner_config(
-        args.planner_config, args.urdf_path, args.target_link_name
+    flow_result_path = ensure_existing_file(
+        prompt_scene_path(
+            scene_dir,
+            "Flow result path",
+            "object_flow_result.pt",
+            args.flow_result,
+        ),
+        "Flow result",
     )
+    flow_result = ObjectFlowResult.load(str(flow_result_path), device=args.device)
+
+    print_section("Configuration")
+    print_kv("Scene Directory", scene_dir)
+    print_kv("Flow Result", flow_result_path)
+    print_kv("Device", args.device)
+
+    planner_config_path = prompt_scene_path(
+        scene_dir,
+        "Planner config path",
+        "direct_shooting_config.yaml",
+        args.planner_config,
+    )
+    config_path = str(planner_config_path) if planner_config_path.is_file() else None
+    print_kv("Planner Config", config_path or "<package defaults>")
+    planner_config = _build_planner_config(
+        scene_dir,
+        config_path,
+        args.urdf_path,
+        args.target_link_name,
+    )
+    print_kv("Target Link", planner_config.target_link_name)
+    if planner_config.urdf_path:
+        print_kv("Robot URDF", planner_config.urdf_path)
+    else:
+        print_kv("Robot Description", "Default Franka")
     planner = DirectShootingPlanner(planner_config)
     num_joints = _infer_num_joints(planner)
 
-    initial_joints = _parse_float_list(
+    initial_joints = resolve_float_list(
         args.initial_joints,
-        expected_length=num_joints,
-        prompt_message=(f"Initial joints ({num_joints} comma-separated values): "),
+        scene_dir,
+        "initial_joints.txt",
+        num_joints,
+        "Initial joints",
     )
-    initial_pose = _parse_float_list(
+    initial_pose = resolve_float_list(
         args.initial_pose,
-        expected_length=7,
-        prompt_message="Initial end-effector pose x,y,z,qx,qy,qz,qw: ",
+        scene_dir,
+        "initial_pose.txt",
+        7,
+        "Initial end-effector pose x,y,z,qx,qy,qz,qw",
     )
+    print_kv("Num Joints", num_joints)
+    print_kv("Initial Joints", ",".join(str(x) for x in initial_joints))
+    print_kv("Initial Pose", ",".join(str(x) for x in initial_pose))
 
     plan = planner.plan(
         flow_result=flow_result,
@@ -176,32 +198,37 @@ def main() -> None:
         initial_pose=initial_pose,
     )
 
-    if args.plan_output:
-        plan_output_path = Path(args.plan_output).expanduser().resolve()
-        plan_output_path.parent.mkdir(parents=True, exist_ok=True)
-        torch.save(
-            {
-                "joint_trajectory": torch.from_numpy(plan.joint_trajectory),
-                "ee_trajectory": torch.from_numpy(plan.ee_trajectory),
-            },
-            plan_output_path,
-        )
-        print(f"Saved planner output to {plan_output_path}")
+    plan_output_path = prompt_scene_path(
+        scene_dir,
+        "Plan output path",
+        "direct_shooting_plan.pt",
+        args.plan_output,
+    )
+    plan_output_path.parent.mkdir(parents=True, exist_ok=True)
+    torch.save(
+        {
+            "joint_trajectory": torch.from_numpy(plan.joint_trajectory),
+            "ee_trajectory": torch.from_numpy(plan.ee_trajectory),
+        },
+        plan_output_path,
+    )
+    print_banner("Planner Ready")
+    print_kv("Saved Plan", plan_output_path)
+    print_kv("Plan Timesteps", plan.joint_trajectory.shape[0])
 
     viewer = Dream2FlowViewer.get_viewer(port=args.viser_port)
     viewer.visualize_object_flow(
         flow_result.flow,
-        name="/examples/object_flow",
+        name="/scripts/object_flow",
         show_all_timesteps=args.show_all_timesteps,
     )
     viewer.visualize_batched_axes(
-        name="/examples/plan",
+        name="/scripts/plan",
         positions=torch.from_numpy(plan.ee_trajectory[:, :3]).float(),
         rotations=torch.from_numpy(plan.ee_trajectory[:, 3:]).float(),
     )
 
-    print(f"Planner trajectory has {plan.joint_trajectory.shape[0]} timesteps.")
-    print(f"Viser viewer running at http://localhost:{args.viser_port}")
+    print_kv("Viser URL", f"http://localhost:{args.viser_port}")
     input("Press Enter to close the viewer...")
 
 
