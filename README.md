@@ -25,7 +25,7 @@ Dream2Flow is a library for generating 3D object flow from video sources and pla
 
 | Task | Scene Preview | Hugging Face Data |
 | --- | --- | --- |
-| put bread | <img src="data/put_bread/camera_rgb.png" alt="Put bread scene preview" width="240" /> | TBD |
+| put bread | <img src="assets/put_bread_img.png" alt="Put bread scene preview" width="240" /> | [Dream2Flow dataset](https://huggingface.co/datasets/kdharmarajan123/Dream2Flow/tree/main) |
 
 Download the scene data from the corresponding Hugging Face link, then place the extracted scene folder inside [`data/`](/scr/karthikd/Documents/video_particle/Dream2Flow/data). For example, after downloading the `put_bread` scene, the files should live under [`data/put_bread/`](/scr/karthikd/Documents/video_particle/Dream2Flow/data/put_bread).
 
