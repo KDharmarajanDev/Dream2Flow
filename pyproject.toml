@@ -1,0 +1,47 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "dream2flow"
+version = "0.1.0"
+description = "Bridging Video Generation and Open-World Manipulation with 3D Object Flow"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "torch",
+    "numpy",
+    "scipy",
+    "viser",
+    "opencv-python",
+    "google-genai",
+    "python-dotenv",
+    "Pillow",
+    "tensordict",
+    "pyyaml",
+    "hydra-core",
+    "torchvision",
+    "transformers",
+    "sam-2 @ git+https://github.com/facebookresearch/sam2.git",
+    "torch_geometric",
+    "einops"
+]
+
+[project.optional-dependencies]
+planner = [
+    "pyroki @ git+https://github.com/chungmin99/pyroki.git",
+    "jax",
+    "jaxlie",
+    "jaxls",
+    "yourdfpy",
+    "robot_descriptions",
+]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["dream2flow"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"dream2flow/configs" = "dream2flow/configs"

@@ -1,0 +1,8 @@
+# Default configuration for the trajectory optimizer
+urdf_path: "panda_description"
+target_link_name: "panda_hand_tcp"
+path_length_weight: 1.0
+particle_matching_weight: 50.0
+max_iterations: 100
+visualize: true
+max_num_timesteps_for_optimization: 100

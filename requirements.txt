@@ -1,0 +1,10 @@
+torch
+numpy
+scipy
+viser
+opencv-python
+google-genai
+python-dotenv
+Pillow
+tensordict
+pyyaml
