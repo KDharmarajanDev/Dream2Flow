@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
+from contextlib import nullcontext
 import sys
 
 import cv2
@@ -69,55 +70,41 @@ class SpaTrackerDepthExtractor(DepthExtractor):
             frames_list.append(frame)
         cap.release()
         frames_np = np.stack(frames_list)
-        video_frames = torch.from_numpy(frames_np).to(self.device)
+        video_frames = torch.from_numpy(frames_np)
         video_frames = video_frames.permute(0, 3, 1, 2)
         return self.extract_depth_from_video(video_frames)
 
     def extract_depth_from_video(self, video_frames: torch.Tensor) -> torch.Tensor:
-        video_frames = video_frames.float() / 255.0
+        video_frames = video_frames.to(dtype=torch.float32) / 255.0
         video_frames = self._preprocess_image_fn(video_frames)[None]
+        video_frames = video_frames.to(self.device)
 
-        autocast_dtype = torch.bfloat16
-        with torch.inference_mode():
+        def _autocast_context():
             if self.device.startswith("cuda"):
-                with torch.amp.autocast(device_type="cuda", dtype=autocast_dtype):
-                    geometry_predictions = self.vggt4track_model(video_frames)
-            else:
+                return torch.amp.autocast(device_type="cuda", dtype=torch.bfloat16)
+            return nullcontext()
+
+        with torch.inference_mode():
+            with _autocast_context():
                 geometry_predictions = self.vggt4track_model(video_frames)
             extrinsic = geometry_predictions["poses_pred"]
             intrinsic = geometry_predictions["intrs"]
             depth_map = geometry_predictions["points_map"][..., 2]
             depth_conf = geometry_predictions["unc_metric"]
+            del geometry_predictions
 
         depth_tensor = depth_map.squeeze().cpu().numpy()
         extrs = extrinsic.squeeze().cpu().numpy()
         intrs = intrinsic.squeeze().cpu().numpy()
         video_tensor = video_frames.squeeze()
         unc_metric = depth_conf.squeeze().cpu().numpy() > 0.5
+        del extrinsic, intrinsic, depth_map, depth_conf
 
         frame_h, frame_w = video_tensor.shape[2:]
         grid_pts = self._grid_point_get_fn(10, (frame_h, frame_w), device="cpu")
         query_xyt = torch.cat([torch.zeros_like(grid_pts[:, :, :1]), grid_pts], dim=2)[0].numpy()
 
-        if self.device.startswith("cuda"):
-            with torch.amp.autocast(device_type="cuda", dtype=autocast_dtype):
-                outputs = self.tracking_model.forward(
-                    video_tensor,
-                    depth=depth_tensor,
-                    intrs=intrs,
-                    extrs=extrs,
-                    queries=query_xyt,
-                    fps=1,
-                    full_point=False,
-                    iters_track=4,
-                    query_no_BA=True,
-                    fixed_cam=False,
-                    stage=1,
-                    unc_metric=unc_metric,
-                    support_frame=len(video_tensor) - 1,
-                    replace_ratio=0.2,
-                )
-        else:
+        with _autocast_context():
             outputs = self.tracking_model.forward(
                 video_tensor,
                 depth=depth_tensor,

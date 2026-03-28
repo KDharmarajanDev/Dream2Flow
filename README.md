@@ -21,14 +21,6 @@ Dream2Flow is a library for generating 3D object flow from video sources and pla
 - **Motion Planning**: Trajectory optimizer using PyRoki for joint-space optimization.
 - **Visualization**: Interactive 3D visualization using Viser.
 
-## Example Scenes
-
-| Task | Scene Preview | Hugging Face Data |
-| --- | --- | --- |
-| put bread | <img src="assets/put_bread_img.png" alt="Put bread scene preview" width="240" /> | [Dream2Flow dataset](https://huggingface.co/datasets/kdharmarajan123/Dream2Flow/tree/main) |
-
-Download the scene data from the corresponding Hugging Face link, then place the extracted scene folder inside [`data/`](/scr/karthikd/Documents/video_particle/Dream2Flow/data). For example, after downloading the `put_bread` scene, the files should live under [`data/put_bread/`](/scr/karthikd/Documents/video_particle/Dream2Flow/data/put_bread).
-
 ## TODOs
 
 - [ ] Release RL reward design and code
@@ -75,12 +67,6 @@ git clone https://github.com/henry123-boy/SpaTrackerV2.git deps/SpaTrackerV2
 python -m pip install -r ./deps/SpaTrackerV2/requirements.txt
 ```
 
-  If you want the example assets bundled by the SpatialTrackerV2 repo, run:
-
-```bash
-git -C deps/SpaTrackerV2 submodule update --init --recursive
-```
-
 - `torch-cluster`:
   install the wheel that matches your PyTorch and CUDA build, using the PyG wheel index referenced by the upstream project.
 
@@ -98,6 +84,20 @@ Upstream installation references:
   <https://github.com/henry123-boy/SpaTrackerV2?tab=readme-ov-file#set-up-the-environment>
 - torch-cluster:
   <https://github.com/rusty1s/pytorch_cluster?tab=readme-ov-file#installation>
+
+To download the Hugging Face scene data into the local [`data/`](/scr/karthikd/Documents/video_particle/Dream2FlowTest/data) folder with the Hugging Face CLI:
+
+```bash
+hf download kdharmarajan123/Dream2Flow --repo-type dataset --local-dir ./data
+```
+
+## Example Scenes
+
+| Task | Scene Preview | Hugging Face Data |
+| --- | --- | --- |
+| put bread | <img src="assets/put_bread_img.png" alt="Put bread scene preview" width="240" /> | [Dream2Flow dataset](https://huggingface.co/datasets/kdharmarajan123/Dream2Flow/tree/main) |
+
+Download the scene data from the corresponding Hugging Face link, then place the extracted scene folder inside [`data/`](/scr/karthikd/Documents/video_particle/Dream2FlowTest/data). For example, after downloading the `put_bread` scene, the files should live under [`data/put_bread/`](/scr/karthikd/Documents/video_particle/Dream2FlowTest/data/put_bread).
 
 ## Usage
 

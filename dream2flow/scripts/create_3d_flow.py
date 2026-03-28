@@ -127,6 +127,7 @@ def _suggest_camera_name(camera_calibration_path: Path) -> str:
 
 
 def _parse_args() -> argparse.Namespace:
+    default_device = "cuda" if torch.cuda.is_available() else "cpu"
     parser = argparse.ArgumentParser(
         description="Generate 3D object flow from a scene directory using video, depth, and CoTrackerV3."
     )
@@ -142,7 +143,7 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--scene-data")
     parser.add_argument("--language-instruction", dest="scene_data")
     parser.add_argument("--output-path")
-    parser.add_argument("--device", default="cpu")
+    parser.add_argument("--device", default=default_device)
     parser.add_argument("--viser-port", type=int, default=8080)
     parser.add_argument(
         "--show-all-timesteps",
@@ -159,6 +160,8 @@ def main() -> None:
     scene_dir = resolve_scene_dir(args.scene_dir)
     scene_dir.mkdir(parents=True, exist_ok=True)
     device = args.device
+    if device.startswith("cuda") and not torch.cuda.is_available():
+        raise RuntimeError("CUDA was requested, but torch.cuda.is_available() is False.")
 
     camera_calibration_path = ensure_existing_file(
         prompt_scene_path(
